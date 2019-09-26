@@ -1,0 +1,481 @@
+## Setup
+
+### Load packages
+
+```{r load-packages, message = FALSE}
+library(ggplot2)
+library(dplyr)
+library(statsr)
+library(BAS)
+library(grid)
+library(gridExtra)
+library(MASS)
+library(GGally)
+```
+
+### Load data
+
+
+
+```{r load-data}
+load("movies.Rdata")
+```
+
+* * *
+
+## Part 1: Data
+
+The data comprised of 651 randomly sampled movies produced and released before 2016.
+It is randomly sampled, but not randomly assigned. Therefore, the data should allow us to generalize to the population of interest. But we cannot establish a caual connection between variables, but only an association. Since the voting and rating are voluntary on IMDB and Rotten Tomatos website, we should be concerned about the voluntary response bias, which occurs when the sample consists of people who volunteer to respond because they have strong opinions on the issue.
+
+
+## Part 2: Data manipulation
+
+
+1. Create the new variable 'feature_film'
+
+```{r}
+movies<-movies%>%mutate(feature_film = ifelse(title_type == "Feature Film", "yes", "no"))
+```
+
+
+2. Create the new variable 'drama'
+
+```{r}
+movies<-movies%>%mutate(drama = ifelse(genre == "Drama", "yes", "no"))
+```
+
+
+3. Create the new variable 'mpaa_rating_R'
+
+```{r}
+movies<-movies%>%mutate(mpaa_rating_R = ifelse(mpaa_rating == "R", "yes", "no"))
+```
+
+
+4. Create the two new variables 'oscar_season' and 'summer_season'
+
+```{r}
+movies<-movies%>%mutate(oscar_season = ifelse(thtr_rel_month=="11"|thtr_rel_month=="12"|thtr_rel_month=="1","yes","no"))
+```
+
+
+```{r}
+movies<-movies%>%mutate(summer_season = ifelse(thtr_rel_month %in% c(5,6,7,8),"yes","no"))
+```
+
+
+
+## Part 3: Exploratory data analysis
+
+
+Let's first look at the summary and distribution of the 'audience_score' variable.
+
+```{r}
+summary(movies$audience_score)
+```
+```{r}
+ggplot(movies)+geom_histogram(mapping = aes(x=audience_score),binwidth = 2)
+```
+
+The distribution shows a left skew, with its mean about 3 points lower than the median.
+
+
+Let's look at the distributions of the new variables, using bar charts.
+
+```{r}
+bar1<-ggplot(movies)+geom_bar(mapping = aes(x=feature_film))+coord_flip()+ ggtitle('Feature Film')
+
+bar2<-ggplot(movies)+geom_bar(mapping = aes(x=drama))+coord_flip()+ggtitle('Drama')
+bar3<-ggplot(movies)+geom_bar(mapping = aes(x=mpaa_rating_R))+coord_flip()+ggtitle('Mpaa_rating_R')
+bar4<-ggplot(movies)+geom_bar(mapping = aes(x=oscar_season))+coord_flip()+ggtitle('Oscar_season')
+bar5<-ggplot(movies)+geom_bar(mapping = aes(x=summer_season))+coord_flip()+ggtitle('Summer_season')
+```
+
+```{r}
+grid.arrange(bar1,bar2,bar3,bar4,bar5,ncol=3)
+```
+
+Let¡¯s look at the distribution of 'audience_score' by the new variables using summary statisitcs and boxplots.
+
+```{r}
+movies%>%group_by(feature_film)%>%summarise(n=n(),scoremean=mean(audience_score),scoremedian=median(audience_score),scoresd=sd(audience_score),scoremin=min(audience_score),scoremax=max(audience_score))%>%mutate(rel.freq=paste0(round(100*n/sum(n),2),"%"))
+
+movies%>%group_by(drama)%>%summarise(n=n(),scoremean=mean(audience_score),scoremedian=median(audience_score),scoresd=sd(audience_score),scoremin=min(audience_score),scoremax=max(audience_score))%>%mutate(rel.freq=paste0(round(100*n/sum(n),2),"%"))
+
+movies%>%group_by(mpaa_rating_R)%>%summarise(n=n(),scoremean=mean(audience_score),scoremedian=median(audience_score),scoresd=sd(audience_score),scoremin=min(audience_score),scoremax=max(audience_score))%>%mutate(rel.freq=paste0(round(100*n/sum(n),2),"%"))
+
+
+movies%>%group_by(oscar_season)%>%summarise(n=n(),scoremean=mean(audience_score),scoremedian=median(audience_score),scoresd=sd(audience_score),scoremin=min(audience_score),scoremax=max(audience_score))%>%mutate(rel.freq=paste0(round(100*n/sum(n),2),"%"))
+
+movies%>%group_by(summer_season)%>%summarise(n=n(),scoremean=mean(audience_score),scoremedian=median(audience_score),scoresd=sd(audience_score),scoremin=min(audience_score),scoremax=max(audience_score))%>%mutate(rel.freq=paste0(round(100*n/sum(n),2),"%"))
+
+
+```
+
+
+```{r}
+box1<-ggplot(data=movies,mapping = aes(x=feature_film,y=audience_score))+geom_boxplot()
+box2<-ggplot(data=movies,mapping = aes(x=drama,y=audience_score))+geom_boxplot()
+box3<-ggplot(data=movies,mapping = aes(x=mpaa_rating_R,y=audience_score))+geom_boxplot()
+box4<-ggplot(data=movies,mapping = aes(x=oscar_season,y=audience_score))+geom_boxplot()
+box5<-ggplot(data=movies,mapping = aes(x=summer_season,y=audience_score))+geom_boxplot()
+```
+
+```{r}
+grid.arrange(box1,box2,box3,ncol=3)
+
+```
+
+```{r}
+grid.arrange(box4,box5,ncol=2)
+```
+We can find that movies that aren't feature type, mostly  documentaries, have strikingly higher audience scores than feature films. However, their proportion is just 9.22% of all movies in the data. Also, drama movies and movies released in oscar seasons, respectively accounting for 46.85% and 29.19%, have higher audiece scores than other movies. By constrast, movies that are rated 'R' and movies released in summer seasons, which account for 50.54% and 31.95%, have slightly lower average audience scores than other movies. But the differences are just less than 1 score point for both of them.
+
+We can also visualize the relationship between the continous variable ¡®audience_score' and the new variables, which all are categorical variables, using geom_freqpoly.
+
+```{r}
+freqpoly1<-ggplot(data=movies,mapping = aes(x=audience_score))+geom_freqpoly(mapping=aes(color=feature_film),binwidth=10)
+
+freqpoly2<-ggplot(data=movies,mapping = aes(x=audience_score))+geom_freqpoly(mapping=aes(color=drama),binwidth=10)
+
+freqpoly3<-ggplot(data=movies,mapping = aes(x=audience_score))+geom_freqpoly(mapping=aes(color=mpaa_rating_R),binwidth=10)
+
+freqpoly4<-ggplot(data=movies,mapping = aes(x=audience_score))+geom_freqpoly(mapping=aes(color=oscar_season),binwidth=10)
+
+freqpoly5<-ggplot(data=movies,mapping = aes(x=audience_score))+geom_freqpoly(mapping = aes(color=summer_season),binwidth=10)
+
+
+grid.arrange(freqpoly1,freqpoly2,freqpoly3,ncol=2)
+
+grid.arrange(freqpoly4,freqpoly5,ncol=2)
+```
+
+Because the overall counts differ so much by each variable, it¡¯s hard to compare the distributions. Instead of displaying count on the y-axis, we can display density on the y-axis so that the area under each frequency polygon is one.
+
+```{r}
+freqpoly1d<-ggplot(data=movies,mapping = aes(x=audience_score,y=..density..))+geom_freqpoly(mapping=aes(color=feature_film),binwidth=10)
+
+freqpoly2d<-ggplot(data=movies,mapping = aes(x=audience_score,y=..density..))+geom_freqpoly(mapping=aes(color=drama),binwidth=10)
+
+freqpoly3d<-ggplot(data=movies,mapping = aes(x=audience_score,y=..density..))+geom_freqpoly(mapping=aes(color=mpaa_rating_R),binwidth=10)
+
+```
+
+```{r}
+grid.arrange(freqpoly1d,freqpoly2d,freqpoly3d,ncol=2)
+```
+
+
+
+```{r}
+freqpoly4d<-ggplot(data=movies,mapping = aes(x=audience_score,y=..density..))+geom_freqpoly(mapping=aes(color=oscar_season),binwidth=10)
+
+freqpoly5d<-ggplot(data=movies,mapping = aes(x=audience_score,y=..density..))+geom_freqpoly(mapping = aes(color=summer_season),binwidth=10)
+```
+
+
+```{r}
+grid.arrange(freqpoly4d,freqpoly5d,ncol=2)
+```
+
+
+
+
+## Part 4: Modeling
+
+Variables to consider for the full model
+
+the response  variable: audience_score
+
+the explanatory variables:
+
+feature_film,drama,runtime,mpaa_rating_R,thtr_rel_year,oscar_season,summer_season,imdb_rating,imdb_num_votes,critics_score,best_pic_nom,best_pic_win,best_actor_win,best_actress_win,best_dir_win,top200_box
+
+
+```{r}
+#fitting the initial full model
+
+aud_score.mlr<-lm(audience_score ~ feature_film+drama+runtime+mpaa_rating_R+
+thtr_rel_year+oscar_season+summer_season+imdb_rating+imdb_num_votes+critics_score+best_pic_nom+best_pic_win+best_actor_win+best_actress_win+best_dir_win+top200_box , data = movies)
+```
+
+
+
+Bayesian model selection criteria to consider : BIC, pick model with the highest posterior probability, pick the best predictive model 
+
+Since the project rubric requires students to report the final model and interpret the model coefficients, I've decided to choose a single model instead of using Bayesian model averaging.
+
+There are several Bayesian Model selection criteria introduced in the lecture.  "BIC is one of the Bayeian criteria, and tends to be one the most popular criteria. When using BIC to select a model, it's common to report parameter estimates based on the reference prior. The estimates under the reference posterior distribution can be obtained using the OLS estimates from R. BIC tends to select parsimonious models while AIC and adjusted r squared may include terms that are not statistically significant, however, may do better for prediction. Other approaches to Bayesian model selection can be based on selecting a model with the highest posterior probability. Or, if our objective is prediction from a single model, the best choice is to find the model whose predictions are closest to those given by BMA. Using the squared error loss, we find that the best predictive model is the one whose predictions are closest to BMA".
+
+
+Firstly, let's select  the model using BIC.
+
+```{r}
+# perform stepwise selection according to BIC (in which case k = log(n) where 
+# n is the number of observations)
+
+stepAIC(aud_score.mlr, k=log(651))
+```
+
+The best model according to BIC comes out to be 
+lm(formula = audience_score ~ runtime + imdb_rating + critics_score,  data = movies)
+
+Let's compare that with the highest probaibility model and the best predictive model under BMA
+
+To do that, we first do Bayesian model averaging.
+
+```{r}
+#Bayesian model averaging using prior = "BIC"
+
+audscore.BIC <- bas.lm(audience_score ~ feature_film+drama+runtime+mpaa_rating_R+
+thtr_rel_year+oscar_season+summer_season+imdb_rating+imdb_num_votes+critics_score+best_pic_nom+best_pic_win+best_actor_win+best_actress_win+best_dir_win+top200_box , data = movies,  prior = "BIC",modelprior = uniform())
+```
+
+```{r}
+image(audscore.BIC, rotate=FALSE)
+```
+
+```{r}
+summary(audscore.BIC)
+```
+
+
+The model with the highest posterior probability has a posterior probability of 13.46 % and has the same three predictors as the model selected according to BIC. But the second highest probability model also has a similar 13.41 % and it doesn't include the variable 'runtime'. The posterior inclusion probabilities of three variables runtime,imdb_rating ,critics_score come out to be 47.95% , 100% , 88. 91 % respectivly.
+
+We can extract the names of predictors in the best probabilty model using below codes.
+
+```{r}
+#Extracting names of predictors of the highest probaibility model under "BIC"
+audscore_BIC.HPM = predict(audscore.BIC,estimator = "HPM")
+variable.names(audscore_BIC.HPM)
+```
+
+Let's extract the names of the predictors in the best prective model.
+
+```{r}
+#Extracting names of predictors of the best predictive model under "BIC"
+
+audscore_BIC.BPM = predict(audscore.BIC,estimator = "BPM")
+
+variable.names(audscore_BIC.BPM)
+```
+
+The best predictive model also has  runtime, imdb_rating, critics_score as predictors of audience_score. 
+
+Before finalizing the model, I've checked results using "ZS-null" instead of "BIC" as priors on model coeffienct. However,  The results just slighty change under "ZS-null" prior. The only difference is that under "ZS-null", the highest probaibility model has only two predictors, "imdb_rating"  and "critics_score, leaving out   "runtime". The predictors of the best predictive model remain the same.
+
+
+```{r}
+#Bayesian model averaging using prior = "ZS-null"
+
+audscore.ZS <- bas.lm(audience_score ~ feature_film+drama+runtime+mpaa_rating_R+
+thtr_rel_year+oscar_season+summer_season+imdb_rating+imdb_num_votes+critics_score+best_pic_nom+best_pic_win+best_actor_win+best_actress_win+best_dir_win+top200_box , data = movies,  prior = "ZS-null",modelprior = uniform())
+```
+
+```{r}
+image(audscore.ZS, rotate=FALSE)
+```
+
+```{r}
+summary(audscore.ZS)
+```
+
+
+```{r}
+#Extracting names of predictors of the highest probaibility model under "ZS-null"
+
+audscore_ZS.HPM = predict(audscore.ZS,estimator = "HPM")
+variable.names(audscore_ZS.HPM)
+```
+
+
+```{r}
+#Extracting names of predictors of the best predictive model under "ZS-null"
+
+audscore_ZS.BPM = predict(audscore.ZS,estimator = "BPM")
+
+variable.names(audscore_ZS.BPM)
+```
+
+
+All in all, it seems reasonable to pick runtime , imdb_rating , critics_score as predictors, when we use bayesian model selection methods
+
+For Bayesian multiple regression, as we have seen, we  need to specify a prior distribution for all of the unknown regression coefficients and the unknown variance sigma squared. For  our final model, I'm adopting the BIC prior, which is non-informative, reference prior. The reference prior has a uniform, or flat distribution for all of the coefficients in the regression function. We also use the reference prior on sigma squared that is proportional to 1 over sigma squared, or 1 over the variance.
+
+Under the reference prior, point estimates and Bayesian credible intervals are equivalent to frequentist estimates and confidence intervals. We can use standard lm function to obtain them, but  there's change in interpretation.
+
+```{r}
+#fitting the final model and summary
+
+audscore.bayes<-lm(formula = audience_score ~ runtime + imdb_rating + critics_score, 
+    data = movies)
+
+summary(audscore.bayes)
+```
+
+BIC tends to select parsimonious models, so it's no wonder that all
+three predictors are statistically significant. 75.38% of the variablity in ¡®audiece_score¡¯ can be explained by the model.
+
+
+Let's turn to model diagnostics
+
+The Bayesian model specification assumes that the errors are normally distributed with a constant variance and that the response variable is linear in numerical variables.
+
+Let¡¯s us start by checking whether each numerical explanatory variable is linearly related to the response variable using residuals plots.
+
+```{r}
+movies<-movies[-c(651),]
+```
+
+
+```{r}
+
+
+lplot1<-ggplot(data = audscore.bayes, aes(x = movies$imdb_rating, y =.resid )) +
+  geom_point(alpha = 0.6) +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  labs(x = "Imdb_rating", y = "Residuals")
+
+lplot2<-ggplot(data = audscore.bayes, aes(x = movies$critics_score, y =.resid )) +
+  geom_point(alpha = 0.6) +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  labs(x = "Critics_score", y = "Residuals")
+
+lplot3<-ggplot(data = audscore.bayes, aes(x = movies$runtime, y =.resid )) +
+  geom_point(alpha = 0.6) +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  labs(x = "Runtime", y = "Residuals")
+
+grid.arrange(lplot1,lplot2,lplot3, ncol=2)
+
+```
+
+We can see almost random scatter of residuals around 0, so we can assume linear relationships between explanatory variables and the response variable.
+
+
+Normality: To check this condition, we can look at a histogram of residuals or a normal probability plot of the residuals where we expect the points to be close to the dashed line, if the assumption of normality holds.
+
+```{r}
+ggplot(data = audscore.bayes, aes(x = .resid)) +
+  geom_histogram(binwidth = 1) +
+  xlab("Residuals")
+qqnorm(audscore.bayes$residuals)
+qqline(audscore.bayes$residuals)
+```
+
+The residuals are a bit right-skewed, and the skewedness is not that strong
+
+
+Constant variability : (Residuals vs Fitted values)
+
+
+```{r}
+ggplot(data = audscore.bayes, aes(x = .fitted, y =.resid) ) +
+  geom_point(alpha = 0.6) +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  labs(x = "Fitted", y = "Residuals")
+```
+
+The variability of the residuals around the line seem to decrease with larger values of fitted values. 
+
+We can view absolute value of residuals vs. predicted to identify unusual observations easily
+
+
+```{r}
+ggplot(data = audscore.bayes, aes(x = .fitted, y =abs(.resid) )) +
+  geom_point(alpha = 0.6) +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  labs(x = "Fitted", y = "Residuals")
+```
+There is a triangle shape in the plot, so we may not be able to ensure the constant variability of residuals.
+
+
+
+checking for outliers
+
+```{r}
+plot(audscore.bayes,which=1)
+```
+
+
+It appears that there may be some outliers in the data - observations 126, 216 and 251 have been flagged as the points with the three largest absolute residuals. We declared observations to be outliers with respect to the population model if their deviation or error was more than 
+k=3 standard deviations above or below 0.
+
+
+```{r}
+#checking for the probabilities of outliers using BAS package
+
+outliers <-Bayes.outlier(audscore.bayes,k=3)
+
+
+#Storing the results in a data frame 
+outliers_df <- data.frame(probability = outliers$prob.outlier,
+                          case = 1:length(outliers$prob.outlier))
+
+outliers_df %>%
+  filter(case %in% c(126,216,251))
+```
+
+
+The probabilities of these cases being an outlier come out to be negligible.
+
+
+We now turn to the interpretation of model coefficients.
+
+As stated before, under the reference prior, point estimates and Bayesian credible intervals are numeriacally equivalent to frequentist estimates and confidence intervals. We can use standard lm functions to obtain them.
+
+```{r}
+#Extracting coeffients and their credible intervals and binding them with column names t
+
+coef<-summary(audscore.bayes)$coef[,1:2]
+
+out=cbind(coef,confint(audscore.bayes))
+
+colnames(out)=c("posterior mean","posterior std","2.5","97.5")
+
+round(out,2)
+```
+
+
+Given the data, we believe there's a 95% Chance that audience score increases by 13.94 to 16.2 point with one point increase of imdb_rating.
+Critics_score's effects are smaller than that: we believe there's a 95% Chance that audience score increases by 0.0276 to 0.1119 point with one point increase of critics_score. Runtime turns out to have a negative relationship with audience score in our model: Given the data, we believe there's a 95% Chance that audience score decreases by 0.0951 to  0.0127 with one minute increase of runtime.
+
+
+## Part 5: Prediction
+
+```{r}
+#Build test data cases for the movie ¡°La La Land (2016)¡± using the data gathered from the rotten tomatoes website and storing the data in the variable
+
+runtime=128
+critics_score=86.4
+imdb_rating=8.0 
+
+LaLaland<-data.frame(runtime,imdb_rating,critics_score)
+```
+
+```{r}
+#Forming prediction intervals
+
+predict.LaLa=predict(audscore.bayes,newdata=LaLaland,interval="prediction")
+colnames(predict.LaLa)=c("prediction","lower","upper")
+predict.LaLa
+```
+
+Based on the data, a Bayesian would expect that the movie "La La Land" would get audience score of 85.85 with 95% chance that it is between 66.16 and 105.5 scores
+
+https://www.imdb.com/title/tt3783958/,
+
+https://www.rottentomatoes.com/m/la_la_land
+
+
+## Part 6: Conclusion
+
+I expected the new variables to explain the variability in audience_score because in the EDA section, they, especially 'feature film' and 'drama', seem to have significant effects on audience_score. However, all of them are excluded in the final model. Even their posterior inclusion probabilities turned out to be very low, most of them ranging from 4 to 8 %
+and 'mpaa_ratingR' having the hightest 20%. This may be partly due to the fact that the Bayesian model selection criteria are more conservative in accepting predictors than methods based on R squares , p-values and even AIC. Also, non-feature type movies, although having a much higher average audience score, account for a tiny 9.22% of the sample so their effects on the model should be relatively small. I think a very important measure of 
+popularity of a movie is the number of votes it gets on movie ratings sites
+because the voting and rating are voluntary. Some movies, for example most documentaries, have very high audience scores and critics scores, but the number of votes used for the scores tend to be much lower than other popular moives. Thus, It would be better to weight audience score with numbers of votes,creating a new measure of popularity, and predict the new
+variale with the rest of variables. In addition, the critics_score and imdb_rating variables used in the final model have a correlation coeffient of 0.765, so we need to be aware of the possibility of the multicollinearity effects.
+
+
+

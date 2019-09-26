@@ -1,0 +1,288 @@
+---
+title: "Exploring the BRFSS data"
+output: 
+  html_document: 
+    fig_height: 4
+    highlight: pygments
+    theme: spacelab
+---
+
+## Setup
+
+### Load packages
+
+```{r load-packages, message = FALSE}
+library(ggplot2)
+library(dplyr)
+library(statip)
+```
+
+### Load data
+
+```{r load-data}
+load("brfss2013.RData")
+```
+
+
+* * *
+
+## Part 1: Data
+The BRFSS data  was collected from adults 18 years and older in all 50 states and US territories using random sampling.  Due to its random samplying method, results are generalizable to the population of the sampled states. 
+Since the BRFSS data is observational, we cannot establish
+a caual connection between variables, but only an association.
+
+
+## Part 2: Research questions
+
+**Research quesion 1:**
+How do the amounts of time people sleep vary according to their general health? Many studies have shown the negative effects of inadequate sleep on health. So it would be interesting to look at the correlation between how much time people sleep on average and their general health stutus in our data and compare the sleep patterns of different groups.
+
+**Research quesion 2:**
+As a second question, I would explore to what degree strength training and people's health are associated.
+How are people who do strength traning different from
+those who don't in terms of general health and poor health days?  Strength training is said to be key for reducing injury risk and maintaining an overall healthy body. And it doesn¡¯t have to take long to do some strength training. But it seems many people feel they don¡¯t have time for a gym or don't work out at home failing to overcome their inertia.
+
+**Research quesion 3:**
+As a third question, I would explore to what degree people's income and people's health are associated. How are people with higher income compared to those with lower income in terms of health? In the brfss data, individuals are classified into 8 income brackets,ranging from 'less than $10,000' to '$7,5000 or more'. I will divide them into two groups,those who earns $7,5000 or more and the rest of them, using a new variable 'highincome'. Almost the same methods and variables as the second question  will be used, but it might be intersting to compare the results with the second question.
+
+
+* * *
+
+## Part 3: Exploratory data analysis
+
+
+**Research quesion 1:**
+
+For the first question, I will use the two variables'genhlth' and 'sleptim1',which measure general health and inadequate sleep.
+```{r}
+brfss2013 %>% 
+  select(genhlth,sleptim1) %>% 
+  str()
+```
+'genhlth' is a factor variable and 'sleptim1' is an integer.
+
+To examine the distribution of the cateorical varibale 'genhlth', we can use a bar chart.
+
+```{r}
+ggplot(data=brfss2013)+geom_bar(mapping=aes(x=genhlth))
+```
+
+We can also compute how many observations occurred with each x value with count()
+
+```{r}
+brfss2013%>%count(genhlth)
+```
+
+We can use a histogram to examine the distribution of the continous varibale 'sleptim1. To zoom in the histogram and focus on available data, we can filter 'sleptim1'.
+
+```{r}
+
+brfss2013<-brfss2013%>%filter(!is.na(sleptim1),sleptim1!="Don¡¯t know/Not Sure",sleptim1 <25)
+
+ggplot(data=brfss2013)+geom_histogram(mapping=aes(x=sleptim1),binwidth=1)
+```
+
+The shape of the distribution has a peak around 7 hours.
+Since 'sleptim1' is a nummerical variable, we can take a look at numerical summaries such as means, medians and mods.
+
+
+```{r}
+brfss2013%>%summarise(slepmean=mean(sleptim1),slepmeadian=median(sleptim1),slepmod=mfv(sleptim1), slepsd=sd(sleptim1))
+```
+
+In a symmetric distribution, the mean and median is almost same and this is the case here. It can be said the distrubtion of 'sleptim1' is symmetric, rather than skewed.Having looked at the individual variables, let's turn to the relationships between them.
+Let's take a look at the distribution of sleep time by general health status.
+
+```{r}
+brfss2013<-brfss2013%>%filter(!is.na(genhlth),genhlth!="Refused")
+ggplot(data=brfss2013, mapping=aes(x=genhlth,y=sleptim1))+geom_boxplot()
+
+```
+
+The boxplot of people with poor health status has a longer IQR, a lower median than the other groups and has a right skewed distribtion. We can confirm that by looking at the grouped summaries of sleep time.
+
+
+```{r}
+
+brfss2013%>%group_by(genhlth)%>%summarise(slepmean=mean(sleptim1),slepmeadian=median(sleptim1),slepmod=mfv(sleptim1), slepsd=sd(sleptim1))
+```
+
+We can observe that the worse the health status is, the lower 'slepmean' is, and the higher 'slepsd' is. This indicates there is a postive relationship between sleep time and health status. But we cannot infer about the cauation between them because we are using observational data.
+
+We can also visualize the relationship between the categorical variable 'genhlth' and the continous variable 'sleptim1' using geom_freqpoly
+
+```{r}
+ggplot(data=brfss2013,mapping=aes(x=sleptim1,color=genhlth))+geom_freqpoly(binwidth=1)
+```
+
+Because the overall counts differ so much by health status, it's hard to compare the distributions. Instead 
+of displaying count on the y-axis, we can display density on the y-axis so that the area under each frequency polygon is one.
+
+```{r}
+ggplot(data=brfss2013,mapping = aes(x=sleptim1,y=..density..)) + geom_freqpoly(mapping = aes(color=genhlth),binwidth=1)
+```
+
+We can see visually that the Poor and Fair groups have more variable distributions in sleep time than the Excellent and Very-good groups, with two modals and fat tails. The Exellent and Very-good group have a similar distribution with each other, but the Excellent group's distribution is somewhat more right-skewed than the other.
+
+
+**Research quesion 2:**
+
+As a second question, I will see how the two variables 'genhlth¡¯ and ¡®poorhlth¡¯ respond depending on whether people do strength training or not. 
+
+```{r}
+brfss2013 %>% 
+  select(genhlth,poorhlth,strength) %>% 
+  str()
+```
+
+'poorhlth' is an integer, which measures the number of days of poor physical or mental health during the past 30 days. We can filter NAs and look at nummarical summaries of 'poorhlth'.
+
+```{r}
+brfss2013<-brfss2013%>%filter(!is.na(poorhlth))
+brfss2013%>%summarise(poorhlmean = mean(poorhlth),poorhlmod=mfv(poorhlth), poorhlsd = sd(poorhlth),poorhlmin = min(poorhlth), poorhlmax = max(poorhlth))
+```
+
+'strength' is also an integer. For the simplicity of analysis , I will just divide the individuals into those who had done physical activities or exercises to strengthen their muscles during the past month and those who hadn't. I will label them with the values 'strength' and 'no_strength' respectively.
+
+```{r}
+brfss2013<-brfss2013%>%filter(!is.na(strength),strength!="Don¡¯t know/Not sure",strength!="Refused")
+
+brfss2013<-brfss2013%>%mutate(No_strength=ifelse(strength=="0","no_strength","strength"))
+
+str(brfss2013$No_strength)
+```
+
+I got a new categorical variable "No_strength" and can see
+how many observations occur with each catergory.
+
+```{r}
+
+
+brfss2013%>%group_by(No_strength)%>%summarise(count=n())
+```
+
+We can see grouped nummarical summaries. 
+
+```{r}
+brfss2013<-brfss2013%>%filter(!is.na(poorhlth))
+brfss2013%>% group_by(No_strength)%>%summarise(poorhlmean = mean(poorhlth),poorhlmod=mfv(poorhlth), poorhlsd = sd(poorhlth),poorhlmin = min(poorhlth), poorhlmax = max(poorhlth))
+```
+
+As we expect, the no_strength group has a higher 'poorhlmean' than total samples and the strength group has
+a significantly lower 'poorhlmean'. This indicates that
+there is a negative relationship between strength training and poor health days in our data. However, as we are using observational data, we  cannot infer about the causation between strength training and poor heath days.
+
+To visalize the association between categorcal variables,
+we can rely on the geom_count()
+
+```{r}
+
+ggplot(data=brfss2013)+geom_count(mapping = aes(x=No_strength,y=genhlth))
+```
+
+The size of each circle in the plot displays how many observations occued at each combination of values.
+Another approach is to compute the count and visualize
+with geom_tile()) and the fill aesthetic.
+
+```{r}
+
+brfss2013%>%count(No_strength,genhlth)
+
+brfss2013%>%count(No_strength,genhlth)%>%ggplot(mapping = aes(x = No_strength,y=genhlth))+geom_tile(mapping=aes(fill=n))
+```
+
+We can also use bar charts.
+
+```{r}
+ggplot(data=brfss2013)+geom_bar(mapping = aes(x=No_strength,fill=genhlth))
+```
+
+We can make the bars the same height to make it easier to
+comapare proportions across groups.
+
+```{r}
+ggplot(data=brfss2013)+geom_bar(mapping = aes(x = No_strength, fill=genhlth),position ="fill")
+```
+
+We can see from the picture above that there is a possive relationship between strength training and general heath condition. But we cannot tell about the causation between them.
+
+
+
+**Research quesion 3:** 
+
+As a third question, I will see how the two variables ¡®genhlth¡¯ and ¡®poorhlth¡¯ vary accoring to income.
+
+```{r}
+brfss2013 %>% 
+  select(genhlth,poorhlth,income2) %>% 
+  str()
+```
+
+'income2' is a factor variable that classifies individuals
+into 8 income brackets. I will divide them into two income groups, those who earns $7,5000 or more and the rest of them, using a new variable ¡®highincome¡¯. I will lable them with  "morethan75000" and "lessthan75000" respectively.
+
+```{r}
+brfss2013 <-brfss2013 %>%mutate(highincome=ifelse(income2=="$75,000 or more", "morethan75000","lessthan75000"))
+brfss2013<-brfss2013%>%filter(!is.na(highincome))
+brfss2013%>% group_by(highincome)%>%summarise(count=n())
+```
+
+Again, we can see grouped nummarical summaries.
+
+```{r}
+
+brfss2013<-brfss2013%>%filter(!is.na(poorhlth))
+brfss2013%>% group_by(highincome)%>%summarise(poorhlmean = mean(poorhlth), poorhlsd = sd(poorhlth),poorhlmin = min(poorhlth), poorhlmax = max(poorhlth))
+```
+
+Like strength training, there is a negative relationship between having incomes more than $7,5000 and poor health days. The relationship between high income and poor health days is stronger than that between strength training and poor health days. However, we still cannot infer about the causation between income and health care.
+
+When we group by strength training and income,
+we can also see the neagative relationship poor health days and income (and strength training)
+
+```{r}
+brfss2013%>% group_by(highincome,No_strength)%>%summarise(poorhlmean = mean(poorhlth), poorhlsd = sd(poorhlth),poorhlmin = min(poorhlth), poorhlmax = max(poorhlth))
+```
+
+```{r}
+brfss2013%>% group_by(No_strength,highincome)%>%summarise(poorhlmean = mean(poorhlth), poorhlsd = sd(poorhlth),poorhlmin = min(poorhlth), poorhlmax = max(poorhlth))
+```
+
+
+We can count the number of observatios for each combination or specific combintions of interest.
+```{r}
+brfss2013<-brfss2013%>% filter(!is.na(genhlth))
+brfss2013%>%count(highincome,genhlth)
+
+brfss2013 %>%filter(genhlth %in% c("Excellent","Poor")) %>%group_by(highincome,genhlth) %>%summarise(count= n())
+
+```
+
+
+To visalize the association between categorcal variables, we can rely on the geom_count()
+
+
+```{r}
+ggplot(data=brfss2013)+geom_count(mapping = aes(x=highincome,y=genhlth))
+```
+
+The size of each circle in the plot displays how many observations occued at each combination of values. Another approach is to compute the count and visualize with geom_tile) and the fill aesthetic.
+
+```{r}
+
+brfss2013%>%count(highincome,genhlth)%>%ggplot(mapping = aes(x = highincome,y=genhlth))+geom_tile(mapping=aes(fill=n))
+```
+
+We can also use bar charts.
+
+```{r}
+ggplot(data=brfss2013)+geom_bar(mapping = aes(x=highincome,fill=genhlth))
+```
+
+We can make the bars the same height to make it easier to comapare proportions across groups.
+
+```{r}
+ggplot(data=brfss2013)+geom_bar(mapping = aes(x = highincome, fill=genhlth),position ="fill")
+```
+
+We can see from the picture above that there is a possive relationship between high income and general heath status. The positive relationsip is stronger than the relationship observed for strength training. But we cannot tell about the causation between them.

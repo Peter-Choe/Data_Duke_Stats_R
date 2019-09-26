@@ -1,0 +1,345 @@
+---
+title: "Statistical inference with the GSS data"
+output: 
+  html_document: 
+    fig_height: 4
+    highlight: pygments
+    theme: spacelab
+---
+
+## Setup
+
+### Load packages
+
+```{r load-packages, message = FALSE}
+library(ggplot2)
+library(dplyr)
+library(statsr)
+library(statip)
+```
+
+### Load data
+
+```{r load-data}
+load("gss.Rdata")
+```
+
+
+
+## Part 1: Data
+
+The vast majority of GSS data is obtained in face-to-face interviews. Computer-assisted personal interviewing (CAPI) began in the 2002 GSS. Under some conditions when it has proved difficult to arrange an in-person interview with a sampled respondent, GSS interviews may be conducted by telephone.
+
+The General Social Survey (GSS) is an area-probability sample that uses the NORC National SamplingFrame for an equal-probability multi-stage cluster sample of housing units for the entire United States.
+
+The target population of the GSS is adults (18+) living in households in the United States. From 1972 to 2004 it was further restricted to those able to do the survey in English. From 2006 to present it has included those able to do the survey in English or Spanish. Those unable to do the survey in either English or Spanish are out-of-scope. Thus the results are only generalizable to those able to do the survey in English or Spanish.
+
+Since the GSS data is observational, we cannot establish a caual connection between variables, but only an association.
+
+
+## Part 2: Research question
+
+
+How do people in their working-age compare to people above 65,the retirement age, with regard to what they prefer in a job? 
+
+In the GSS survey, respondents are shown five attributes of job( high income, no danger of being fired, short working hours, chances of advancement, work important and a sense of accomplishment) and asked to label each of them according to how much importance they attach to the attribute. I would explore the relationship bewteen age of respondents and how much importance they attach to high income and job security in a job. For example, I will test if the working-age population and the retired population have equal proportions of those who see high income as the most important thing in a job. 
+
+## Part 3: Exploratory data analysis
+
+
+Let's look at the distriubtion of the age variable.
+
+
+```{r}
+gss<-gss%>%filter(!is.na(age))
+```
+
+
+```{r}
+
+ggplot(data=gss)+geom_histogram(mapping=aes(x=age),binwidth=2)
+boxplot(gss[["age"]],ylab="Age")
+```
+
+
+The distribution of the age variable is right skewed, with the mean greater than the median.
+
+
+
+
+```{r}
+gss%>%summarise(agemean = mean(age), agemedian = median(age),agemod=mfv(age),agesd = sd(age),agemin = min(age), agemax = max(age))
+```
+
+
+
+
+To answer the question , I will turn the numerical variable age into a categorical variable based on whether people are 65 years or older or younger than 65.
+
+
+
+
+```{r}
+gss<-gss%>%mutate(retiredage = ifelse(age >= 65, "retired age", "working age"))
+```
+
+```{r}
+gss%>%count(retiredage)
+ggplot(gss)+geom_bar(mapping=aes(x=retiredage))
+```
+
+
+
+
+Let's have a look at the distribution of age by the two groups using grouped summaries and boxplots. 
+
+
+
+```{r}
+gss%>%group_by(retiredage)%>%summarize(mean=mean(age),median=median(age),mod=mfv(age),count=n())
+ggplot(data=gss,mapping=aes(x=retiredage,y=age))+geom_boxplot()
+```
+
+
+
+To answer the question, We can use the variables 'jobinc' and 'jobsec' in the 'job security and satisfaction' section. These are categorical variables.
+
+
+
+```{r}
+str(gss$jobinc)
+str(gss$jobsec)
+```
+
+
+
+
+Let's see how many observations occured with each value in these variables.
+
+
+
+```{r}
+prefer_job<-select(gss,jobinc:jobsec)
+summary(prefer_job)
+```
+
+
+
+
+Before inference, I will compare the ages of those who labeled high income as most important and those who labeled it as least important
+
+
+
+
+
+1.High income 
+
+
+
+ Let's filter for these specific levels. 
+
+
+```{r}
+gss_inc<-gss%>%filter(jobinc %in% c("Most Impt","Fifth"))
+```
+
+
+
+Let's have a look at the  grouped summaries of age and the side-by-side box plot.
+
+
+
+
+```{r}
+gss_inc%>%group_by(jobinc)%>%summarise(mean=mean(age),median=median(age),sd=sd(age),count=n())
+
+ggplot(data=gss_inc,mapping=aes(x=jobinc,y=age))+geom_boxplot()
+```
+
+
+We can see those who regarded high income as least important have a much higher mean and median age than those who regarded it as most important in a job. Then it might be the case that retired people attach less importance to high income than working-age people. For the inferece part, I hope to prove that the retired Americans has a lower proportion of those who regard high income as most important than the working-age Americans.
+
+
+
+
+
+2. job security
+
+
+
+Again, we will compare the ages of those who labeled no danger of being fired as most important and thoses who labeled it as least important. Let's filter for these specific levels. 
+
+
+```{r}
+gss_sec<-gss%>%filter(jobsec %in% c("Most Impt","Fifth"))
+```
+
+
+
+Let's have a look at the  grouped summaries of age and the side-by-side box plot.
+
+
+
+```{r}
+gss_sec%>%group_by(jobsec)%>%summarise(mean=mean(age),median=median(age),sd=sd(age),count=n())
+
+ggplot(data=gss_sec,mapping=aes(x=jobsec,y=age))+geom_boxplot()
+```
+
+
+
+Those who regarded job security as most important have a considerably higher mean and median age than those who regarded it as least important in a job. Then it might be the case that the retired people attach more importance to job security than working-age people. For the inferece part, I hope to prove that the retired Americans has a higher proportion of those who regarded job security as most important than the working-age Americans.
+
+
+
+
+
+## Part 4: Inference
+
+
+
+1.High income
+
+
+
+ *Hypothesis*
+
+As stated before, the first alternative hypothesis is that the retired population has a lower proportion of those who regard high income as most important in a job than the working-age population. The null hypothesis is that people in their working-age and people above retirement age have equal proportions of those who regard high income as the most important thing in a job.
+
+For inference, I will make the new variable 'income_important', which divides the respondents on the basis of whether they regarded high income as most important or not.
+
+
+```{r}
+gss<-gss%>%mutate(income_important=ifelse(jobinc=="Most Impt","Most Impt","Not Most Impt"))%>%filter(!is.na(income_important))
+
+ggplot(gss)+geom_bar(mapping=aes(x=income_important))
+gss%>%count(income_important)
+```
+
+
+
+*conditions for inference*
+
+
+```{r}
+gss%>%group_by(retiredage)%>%summarize(count=n())
+```
+
+
+I would like to test the two groups, the retired and working-age population, for equal proportions.
+
+To perform inference for comparing two independent proportions on the basis of the theoratical method, we need to check the indepedence conditions and success-failure condition.
+ The indepedence conditions comprise of the within-group and between-group parts.
+Our sampled observations are independent within each group because the survey used random sampling and the sample sizes are clearly less than 10% of the US population.
+Also, the two groups should be independent of each other becasue of the random sampling method.
+
+Each sample also meets the success-failure condition: There should be at least 10 successes and 10 failures in the sample.
+I will call regrading high income as most important 'success' and use the sample proportion instead of the population proportion, which is unknown. As we can see in the below table, the numbers of successes and failures are far greater than 10, thanks to the large sample sizes.
+
+
+```{r}
+
+gss%>%count(retiredage,income_important)
+```
+
+
+Sinc the conditions are met, we can assume that the sampling distribution of the difference between two proportions is nearly normal and use the theoretical method for inference.
+
+
+
+ *inference*
+
+
+Since we are looking at the relationship between two categorical variables, each with only two levels, we can make use of both hypothesis testing and confidence interval.
+Our parameter of interest is the difference between two proportions.
+
+
+```{r}
+Ht1<-select(gss,retiredage,income_important)
+```
+
+```{r}
+inference(y=income_important,x=retiredage,data=Ht1,type = "ht",statistic="proportion",success = "Most Impt",method = "theoretical",null=0,alternative = "less")
+```
+
+
+
+Our sample estimate is p_hat_retired age - p_hat_working age, which is -6.02%. 
+The p-value means the probability of observing this observed or more extreme outcome given the null hypothesis, which is that the two groups have equal proportions. Since the p-value is less than 0.0001%, we can confidently reject the null hypothesis in favor of the alternative.
+
+
+
+```{r}
+inference(y=income_important,x=retiredage,data=Ht1,type = "ci",statistic="proportion",success = "Most Impt",method = "theoretical",null=0,alternative = "less")
+```
+
+
+
+Using a 95% confidence interval, we can estimate how people in their working-age and people above 65 compare with respect to their views on importance of high income in a job. The overal  95% confidence interval comes out to be (-0.074 , -0.0465). This means we are 95% confident that the proportion of the retire population who regard high income as most important in a job is 7.4% to 4.65% lower than the proportion of the working-age popuation. The confidence interval does not include the null value, which is 0% , so the CI agrees with HT.
+
+
+
+
+
+2.job security
+
+
+ *Hypothesis*
+
+
+The second alternative hypothesis is that the retired population has a higher proportion of those who regard job security as the most important thing in a job than the working-age population. The null hypothesis is that people in their working-age and people above retirement age have equal proportions of those who regard job security as the most important thing in a job.
+
+For inference, I will make the new variable 'sec_important', which divides the respondents on the basis of whether they regarded job security as most important or not.
+
+
+```{r}
+ gss<-gss%>%mutate(sec_important=ifelse(jobsec=="Most Impt","Most Impt","Not Most Impt"))%>%filter(!is.na(sec_important))
+ggplot(gss)+geom_bar(mapping=aes(x=sec_important))
+gss%>%count(sec_important)
+```
+
+
+
+
+ *conditions* 
+ 
+ 
+```{r}
+gss%>%count(retiredage,sec_important)
+```
+
+
+ We can confirm that there are more than 10 successes and 10 failures and other conditions  are met as well since they are the same as the inference for high income. Since the conditions are met, we can assume that the sampling distribution of the difference between two proportions is nearly normal and use the theoretical method for inference.
+ 
+ 
+ 
+ *inference*
+
+
+Since we are looking at the relationship between two categorical variables, each with only two levels, we can make use of both hypothesis testing and confidence interval.
+Our parameter of interest is the difference between two proportions.
+
+
+```{r}
+
+ ht2<-select(gss,retiredage,sec_important)
+ inference(y=sec_important,x=retiredage,data=ht2,type = "ht",statistic="proportion",success = "Most Impt",method = "theoretical",null=0,alternative = "greater")
+```
+
+
+Our sample estimate is p_hat_retired age - p_hat_working age, which is 1.87%. 
+The p-value  means the probability of observing this observed or more extreme outcome given the null hypothesis, which is that the two groups have equal proportions. Since the p-value is 0.0001%, we can confidently reject the null hypothesis in favor of the alternative.
+
+
+
+```{r}
+inference(y=sec_important,x=retiredage,data=ht2,type = "ci",statistic="proportion",success = "Most Impt",method = "theoretical",null=0,alternative = "greater")
+```
+
+
+Using a 95% confidence interval, we can estimate how people in their working-age and people above 65 compare with respect to their views on importance of job security in a job. The overal  95% confidence interval comes out to be (0.008 , 0.0294). This means we are 95% confident that the proportion of the retired Americans who regard job security as the most important thing in a job is 0.8% to 2.94% higher than the proportion of the working-age Americans. The confidence interval does not include the null value, which is 0% , so the CI agrees with HT.
+
+
+All in all, We found that when it comes to what they prefer in a job, people above 65 tend to attach less importance to high income, but greater importance to job security than people below 65.
+
+

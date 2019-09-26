@@ -1,0 +1,343 @@
+---
+title: "Modeling and prediction for movies"
+output: 
+  html_document: 
+    fig_height: 4
+    highlight: pygments
+    theme: spacelab
+---
+
+## Setup
+
+### Load packages
+
+```{r load-packages, message = FALSE}
+library(ggplot2)
+library(dplyr)
+library(statsr)
+library(GGally)
+```
+
+### Load data
+
+
+```{r load-data}
+load("movies.Rdata")
+```
+
+
+
+
+## Part 1: Data
+
+The data comprised of 651 randomly sampled movies produced and released before 2016.
+It is randomly sampled, but not randomly assigned. Therefore, the data should allow us to generalize to the population of interest. But we cannot establish a caual connection between variables, but only an association. Since the voting and rating are voluntary on IMDB and Rotten Tomatos website, we should be concerned about the voluntary response bias, which occurs when the sample consists of people who volunteer to respond because they have strong opinions on the issue.
+
+
+## Part 2: Research question
+
+Which variables are associated with the popularity of a movie and what are the relationships between them?  I try to measure the popularity of a movie using a new variable made up of  numbers of votes at imdb and ratings at imdb and Rotten tomatoes.
+
+## Part 3: Exploratory data analysis
+
+
+```{r}
+summary(movies)
+```
+
+
+The distribution of imdb ratings:
+
+```{r}
+summary(movies$imdb_rating)
+ggplot(data=movies,aes(imdb_rating))+geom_histogram()
+```
+
+The distribution of numbers of votes at imdb:
+
+```{r}
+summary(movies$imdb_num_votes)
+ggplot(data=movies,aes(imdb_num_votes))+geom_histogram()
+```
+
+The distribution of audience scores at Rotten tomatoes:
+
+```{r}
+summary(movies$audience_score)
+ggplot(data=movies,aes(audience_score))+geom_histogram()
+```
+
+
+Creating a new variable,'public rating', by averaging the audience scores at Rotten tomatoes and imdb ratings:
+
+```{r}
+movies<-movies%>%mutate(public_rating=(imdb_rating*10+audience_score)/20)
+```
+
+The distrbtion of the new variable 'public rating' 
+
+```{r}
+summary(movies$public_rating)
+ggplot(data=movies,aes(public_rating))+geom_histogram()
+```
+
+Taking the logarithm of numbers of votes at imdb to better present numbers of votes
+
+```{r}
+movies<-movies%>%mutate(log.vote=log(imdb_num_votes))
+ggplot(data=movies,aes(log.vote))+geom_histogram()
+```
+
+
+Creating a new measure for the popularity of a movie by multiplying 'public rating' and 'log.vote' 
+
+```{r}
+movies<-movies%>%mutate(popularity=log.vote*public_rating)
+```
+
+```{r}
+summary(movies$popularity)
+```
+
+```{r}
+ggplot(data=movies,aes(popularity))+geom_histogram()
+```
+
+
+Having comed up with the new response variable, let's have a look at the relationships between the respose variable 'popularity' and some potential predictors.
+
+
+```{r}
+ggplot(data=movies,aes(critics_score,popularity))+geom_jitter()+geom_smooth(method = "lm")
+```
+
+
+```{r}
+ggplot(data=movies,aes(runtime,popularity))+geom_jitter()+geom_smooth(method = "lm")
+```
+
+
+ Let's compare the 'public_rating' and 'popularity' variables with respect to how they relate to the 'genre' variable.
+
+```{r}
+ggplot(data=movies,aes(genre,public_rating))+geom_boxplot()
+```
+
+
+```{r}
+ggplot(data=movies,aes(genre,popularity))+geom_boxplot()
+```
+
+We can see that the order of genres change a lot if we weight ratings with number of votes.
+
+
+```{r}
+ggplot(data=movies,aes(audience_rating,popularity))+geom_boxplot()
+```
+
+
+```{r}
+ggplot(data=movies,aes(best_pic_nom,popularity))+geom_boxplot()
+```
+
+```{r}
+
+ggplot(data=movies,aes(best_dir_win,popularity))+geom_boxplot()
+```
+
+All the variables  considered above  seem to have reasonable significant correlation with the 'popularity' variable, so they will be included in the initial full model.
+
+
+## Part 4: Modeling
+
+Variables to consider for the full model
+
+the response  variable: 'popularity' (the new varible made up by multiplying 'log.vote' with 'public_rating',which is the average of 'imdb_rating' and 'audience_score')
+
+explanatory variables :
+genre,thtr_rel_month,runtime,thtr_rel_year,critics_score,audience_rating,critics_rating,best_pic_nom,best_pic_win,best_actor_win,best_actress_win,best_dir_win,top200_box
+
+Reasoning for excluding certain variables
+
+I'm not using 'imdb_rating' and 'audience_score' to predict the popularity of a movie because they are used to make the response variable
+and, after all, they are highly correlated with other continous variable 'critics_score'.
+
+```{r}
+movies%>%summarise(cor(imdb_rating,critics_score))
+```
+
+```{r}
+movies%>%summarise(cor(audience_score,critics_score))
+```
+
+Reasoning for choice of model selection method: 
+
+I will use backward elimination, where I start with the full model and take away predictors that are not stastically significant until I am left with a model in which all predictors are statiticall significant. A lot of variables seem to have significant correlation with 'popularity'. To figure out which variables are statisitical significant, we use the P-value method. It is also easier to implement than the R-squred method.
+
+
+Carrying out the model selection 
+
+
+```{r}
+fit_full<-lm(popularity~genre+thtr_rel_month+thtr_rel_year+runtime++critics_score+audience_rating+critics_rating+best_pic_nom+best_pic_win+best_actor_win+best_actress_win+best_dir_win+top200_box,data=movies)
+```
+```{r}
+summary(fit_full)
+```
+
+'best_actress_win' has the highest p-value, so we drop it and refit the model.
+
+```{r}
+fit1<-lm(popularity~genre+thtr_rel_month+thtr_rel_year+runtime++critics_score+audience_rating+critics_rating+best_pic_nom+best_pic_win+best_actor_win++best_dir_win+top200_box,data=movies)
+
+summary(fit1)
+```
+
+'best_pic_win' has the highest p-value, so we drop it and refit the model.
+
+
+```{r}
+fit2<-lm(popularity~genre+thtr_rel_month+thtr_rel_year+runtime++critics_score+audience_rating+critics_rating+best_pic_nom+best_actor_win+best_dir_win+top200_box,data=movies)
+
+summary(fit2)
+```
+
+
+'thtr_rel_month' has the highest p-value, so we drop it and refit the model.
+
+
+```{r}
+fit3<-lm(formula = popularity ~ genre  + thtr_rel_year + 
+    runtime +critics_score + audience_rating + critics_rating + 
+    best_pic_nom + best_actor_win + best_dir_win + top200_box, 
+    data = movies)
+
+summary(fit3)
+
+```
+
+Some levels of the 'genre' variable have high p-values, so we need to consider whether 
+the 'genre' variable is significant. Let's compare the model without 'genre' and the model with 'genre' using anova().
+
+
+```{r}
+fit4<-lm(popularity~ thtr_rel_year + 
+    runtime +critics_score + audience_rating + critics_rating + 
+    best_pic_nom + best_actor_win + best_dir_win + top200_box,data=movies)
+
+```
+
+```{r}
+anova(fit4,fit3)
+```
+
+Since p-value of the anova table is very low, we reject the null hypothesis, which is that 
+'genre' has nothing to do with 'popularity'.
+
+'best_actor_win' has the next highest p-value in fit3, so we drop it and refit the model.
+
+```{r}
+fit5<-lm(popularity~ genre   + thtr_rel_year +
+    runtime + critics_score + audience_rating + critics_rating + 
+    best_pic_nom + best_dir_win + top200_box, 
+    data = movies)
+
+summary(fit5)
+```
+
+
+All the variables in fit5 have significant p-values, so fit5 is our final model.
+
+
+
+Let's turn to model diagnostics.
+
+```{r}
+plot(fit5,which = 1:2) ; hist(fit5$residuals)
+```
+
+
+We can see almost random scatter of residuals around 0  and nearly normal distribution of residuals. Therfore, we have nearly normal residuals with mean 0.
+
+The constant variance of residuals condition is met, since no fan shape in residuals plot.
+
+We can also be sure that there are no correlation between residuals from seeing below plot
+
+```{r}
+plot(fit5$residuals)
+```
+
+
+Let's us also check whether each numerical explanatory variable is linearly related to the response variable.
+
+```{r}
+movies<-movies[-c(651),]
+```
+
+```{r}
+plot(fit5$residuals~movies$thtr_rel_year)
+```
+
+```{r}
+plot(fit5$residuals~movies$runtime)
+```
+
+```{r}
+plot(fit5$residuals~movies$critics_score)
+```
+
+We can see almost random scatter of residuals around 0, so we can assume linear relationships between numerical  variables and the response variable.
+
+
+Interpretation of  model coefficients:
+
+critics_score coefficient:
+ All else hold constant, for every one unit increase in critics_score, the model predicts a 0.21665 increase in 'popularity' on average. Other numerical variables,thtr_rel_year and runtime, have the same interpretation.
+
+genre coefficients: The coeffiencets are interpreted as relative to the refrence level 'Action & Adventure'. For example, the model predicts,all else being equal, a documentary movie would have 21.25 lower 'popularity' point than an action and adventure movie.
+
+critics_rating coefficients: The coeffiencets are interpreted as relative to the refrence level 'Certified Fresh'.  For example, the model predicts, all else being equal, a movie rated 'Fresh' by critics would have 8.75048 lower point in popularity on average than movie rated 'Certified Fresh' at Rotten tomatoes.
+
+audience_rating coefficient: All else hold constant, the model predicts a movie rated 'Upright' by audience would have 21.22 higher point in popularity on average than a movie rated Spilled at Rotten tomatoes. Other Factor variables have the same interpretation.
+
+R-Squared: 66.21% of the variablity in 'popularity' can be explained by the model.
+
+## Part 5: Prediction
+
+Build test data cases for the movie ¡°La La land (2016)¡± using the data gathered from the rotten tomatoes website and storing the data in the variable
+
+```{r}
+genre="Musical & Performing Arts"
+thtr_rel_year=2016
+runtime=128
+critics_score=86.4
+audience_rating="Upright"
+critics_rating="Certified Fresh"
+best_pic_nom="yes"
+best_dir_win="yes"
+top200_box="no"
+ 
+
+LaLaland<-data.frame(genre,thtr_rel_year,
+    runtime,critics_score,audience_rating,critics_rating,
+    best_pic_nom,best_dir_win,top200_box)
+
+```
+
+
+```{r}
+ predict(fit5,LaLaland)
+```
+
+We can also construct a prediction interval around this prediction, which will provide a measure of uncertainty around the prediction.
+
+```{r}
+predict(fit5,LaLaland,interval = "prediction", level = 0.95)
+```
+We are 95% confident that, all else being equal, the predicted popularity for the movie ¡®La La land¡¯ would be between 73.3685 and 123.2203 on average.
+
+* * *
+
+## Part 6: Conclusion
+
+According to the model and new popularity measure, the most popular movie genre is 'Action and Adventure'. The documentary genre movie was the least popular, although it received the highest median public_rating. Other critical variable on popularity is whether a movie is rated 'Upright' at Rotten tomatoes by audience, with the coeffient being 21.22. The numerical variables, critics score,runtime,year of release all have positive relationships with popularity, but their effects were negligible. Among variables related to the Oscal awards, only 'best_pic_nom' and 'best_dir_win' have significant effects on popularity. We should note that the sample might not be representative because of the voluntary response bias. Also the new variable 'popularity' need to be more closely examined as to whether it better represents the popularity of a movie.
