@@ -1,5 +1,7 @@
 # Data_Duke_Stats_R Course Projects 
 
+https://www.coursera.org/specializations/statistics?
+
 Course 1 : Introduction to data and probability 
 
 https://www.coursera.org/account/accomplishments/certificate/ZT46HCZQJDK6
